@@ -10,12 +10,13 @@ from PyQt5.QtCore import Qt, QTime, QDate, QDateTime, QTimer
 
 # Configuration Variables
 BUFFER_SIZE = ["0.1","0.5","1","2","3","4","5","6","7","8","9","10","11","12","24","36","48"]
-PROTO_LIST = ["FDSNWS","SLINK","ROUTER","IRIS-FDSNWS"]
+PROTO_LIST = ["FDSNWS","SLINK","ROUTER","IRIS-FDSNWS","CAPS-SERVER"]
 PROTO_LIST_TOOLTIPS = {
     "FDSNWS": "FDSN Web Service: Request the waveform data from local FDSNWS Service",
     "SLINK": "SeedLink: Request the waveform data from local SeedLink",
     "ROUTER": "Request data from separate sources using Router API",
-    "IRIS-FDSNWS": "IRIS FDSN Web Service: Request the waveform data from IRIS FDSNWS Service"
+    "IRIS-FDSNWS": "IRIS FDSN Web Service: Request the waveform data from IRIS FDSNWS Service",
+    "CAPS-SERVER": "Request the data from localhost CAPS-SERVER"
 }
 
 class Form(QWidget):
@@ -166,6 +167,8 @@ class Form(QWidget):
                 endpoint = f"router:///opt/seiscomp/etc/router.conf"
             elif form_protocol == 'IRIS-FDSNWS':
                 endpoint = f"fdsnws://service.iris.edu"
+            elif form_protocol == 'CAPS-SERVER':
+                endpoint = f"caps://localhost:18002"
 
             # Get the stream codes from the dropdown menu
             selected_stream_codes = self.streamsCombo.currentText()
