@@ -55,19 +55,19 @@ class Form(QWidget):
         formLayout = QFormLayout()
 
         # Create widgets
-        self.endTimeEdit = QDateTimeEdit(QDateTime.currentDateTimeUtc())
-        self.endTimeEdit.setDisplayFormat("dd/MM/yyyy HH:mm:ss")
-        self.endTimeEdit.setTimeSpec(Qt.UTC)
-        self.endTimeEdit.setToolTip('Enter the end time in UTC')
+        self.startTimeEdit = QDateTimeEdit(QDateTime.currentDateTimeUtc())
+        self.startTimeEdit.setDisplayFormat("dd/MM/yyyy HH:mm:ss")
+        self.startTimeEdit.setTimeSpec(Qt.UTC)
+        self.startTimeEdit.setToolTip('Enter the start time in UTC')
 
         self.resetTimeNowButton = QPushButton('Reset Time Now')
         self.resetTimeNowButton.clicked.connect(self.reset_time_now)
         self.resetTimeNowButton.setToolTip('Click to reset time to now')
 
-        # Create a horizontal layout to hold the end time edit and reset time now button
-        endTimeLayout = QHBoxLayout()
-        endTimeLayout.addWidget(self.endTimeEdit)
-        endTimeLayout.addWidget(self.resetTimeNowButton)
+        # Create a horizontal layout to hold the start time edit and reset time now button
+        startTimeLayout = QHBoxLayout()
+        startTimeLayout.addWidget(self.startTimeEdit)
+        startTimeLayout.addWidget(self.resetTimeNowButton)
 
         self.bufferSizeCombo = QComboBox()
         self.bufferSizeCombo.addItems(BUFFER_SIZE)
@@ -100,7 +100,7 @@ class Form(QWidget):
         self.streamsCombo.currentIndexChanged.connect(self.change_streams)
 
         # Add widgets to form layout
-        formLayout.addRow('End Time (UTC)', endTimeLayout)
+        formLayout.addRow('Start Time (UTC)', startTimeLayout)
         formLayout.addRow('Buffer Length (hours)', self.bufferSizeCombo)
         formLayout.addRow('Recordstream', self.protocolCombo)
         formLayout.addRow('Stream Codes', self.streamsCombo) # Add the stream codes widget to the form layout
@@ -140,65 +140,62 @@ class Form(QWidget):
 
     def ok(self):
         # Parse Form Data
-        form_end_time_str = self.endTimeEdit.text()
+        form_start_time_str = self.startTimeEdit.text()
 
         # Validate Form Data
         try:
-            form_end_time = datetime.strptime(form_end_time_str, "%d/%m/%Y %H:%M:%S")
+            form_start_time = datetime.strptime(form_start_time_str, "%d/%m/%Y %H:%M:%S")
         except ValueError:
             logging.error("Invalid date or time format. Please use dd/MM/yyyy for date and HH:mm:ss for time. Exiting.")
             exit(1)
 
-        if form_end_time > datetime.utcnow():
-            QMessageBox.warning(self, 'Error', 'Selected date is in the future, Try again.')
-        else:
-            form_buffer = self.bufferSizeCombo.currentText()
-            form_protocol = self.protocolCombo.currentText()
-            form_showPicks = self.showPicksCheck.isChecked() # Get the showPicks status from the checkbox
-            form_noInventory = self.noInventoryCheck.isChecked() # Get the noInventory status from the checkbox
-            form_offline = self.offlineCheck.isChecked() # Get the offline status from the checkbox
+        form_buffer = self.bufferSizeCombo.currentText()
+        form_protocol = self.protocolCombo.currentText()
+        form_showPicks = self.showPicksCheck.isChecked() # Get the showPicks status from the checkbox
+        form_noInventory = self.noInventoryCheck.isChecked() # Get the noInventory status from the checkbox
+        form_offline = self.offlineCheck.isChecked() # Get the offline status from the checkbox
 
-            # Determine Endpoint
-            if form_protocol == 'FDSNWS':
-                endpoint = f"fdsnws://localhost:8081"
-            elif form_protocol == 'SLINK':
-                endpoint = f"slink://localhost:18000"
-            elif form_protocol == 'ROUTER':
-                endpoint = f"router:///opt/seiscomp/etc/router.conf"
-            elif form_protocol == 'IRIS-FDSNWS':
-                endpoint = f"fdsnws://service.iris.edu"
-            elif form_protocol == 'CAPS-SERVER':
-                endpoint = f"caps://localhost:18002"
+        # Determine Buffer Size
+        buffer_size = int(float(form_buffer or 0) * 3600)
 
-            # Get the stream codes from the dropdown menu
-            selected_stream_codes = self.streamsCombo.currentText()
-            stream_codes = self.actual_stream_codes.get(selected_stream_codes, selected_stream_codes)
+        # Calculate End Time
+        form_end_time = form_start_time + timedelta(seconds=buffer_size)
 
-            # Determine Buffer Size
-            buffer_size = int(float(form_buffer or 0) * 3600)
+        # Determine Endpoint
+        if form_protocol == 'FDSNWS':
+            endpoint = f"fdsnws://localhost:8081"
+        elif form_protocol == 'SLINK':
+            endpoint = f"slink://localhost:18000"
+        elif form_protocol == 'ROUTER':
+            endpoint = f"router:///opt/seiscomp/etc/router.conf"
+        elif form_protocol == 'IRIS-FDSNWS':
+            endpoint = f"fdsnws://service.iris.edu"
+        elif form_protocol == 'CAPS-SERVER':
+            endpoint = f"caps://localhost:18002"
 
-            # Calculate Buffer End Time
-            form_buffer_end_time = form_end_time - timedelta(seconds=buffer_size)
+        # Get the stream codes from the dropdown menu
+        selected_stream_codes = self.streamsCombo.currentText()
+        stream_codes = self.actual_stream_codes.get(selected_stream_codes, selected_stream_codes)
 
-            # Construct Command
-            sc3cmd = f"scrttv --debug -u {random.randint(0, 10000)}-{getpass.getuser()} -H {self.remote_host} -d {self.db_strg} --maxDelay=0 -I \
-                      {endpoint} --resortAutomatically=\"false\" --autoApplyFilter=\"true\" \
-                      --buffer-size=\"{buffer_size}\"  --start-time=\"{form_buffer_end_time}\" --end-time=\"{form_end_time}\" --streams.codes=\"{stream_codes}\" \
-                      --scheme.colors.records.foreground=\"000000\" \
-                      --scheme.colors.records.background=\"ffffff\" \
-                      --scheme.colors.records.alternateBackground=\"ffffff\" \
-                      --scheme.colors.records.gaps=\"ff7f7f\" \
-                      --showPicks={str(form_showPicks).lower()} \
-                      {'--no-inventory' if form_noInventory else ''} \
-                      {'--offline' if form_offline else ''} \
-                      "
+        # Construct Command
+        sc3cmd = f"scrttv --debug -u {random.randint(0, 10000)}-{getpass.getuser()} -H {self.remote_host} -d {self.db_strg} --maxDelay=0 -I \
+                  {endpoint} --resortAutomatically=\"false\" --autoApplyFilter=\"true\" \
+                  --buffer-size=\"{buffer_size}\"  --start-time=\"{form_start_time}\" --end-time=\"{form_end_time}\" --streams.codes=\"{stream_codes}\" \
+                  --scheme.colors.records.foreground=\"000000\" \
+                  --scheme.colors.records.background=\"ffffff\" \
+                  --scheme.colors.records.alternateBackground=\"ffffff\" \
+                  --scheme.colors.records.gaps=\"ff7f7f\" \
+                  --showPicks={str(form_showPicks).lower()} \
+                  {'--no-inventory' if form_noInventory else ''} \
+                  {'--offline' if form_offline else ''} \
+                  "
 
-            # Execute Command
-            try:
-                subprocess.run(sc3cmd, shell=True)
-                print("Command executed successfully!")
-            except Exception as e:
-                print(f"An error occurred: {e}")
+        # Execute Command
+        try:
+            subprocess.run(sc3cmd, shell=True)
+            print("Command executed successfully!")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     def change_streams(self):
         # Set the stream codes variable to the current text
@@ -209,7 +206,9 @@ class Form(QWidget):
 
     def reset_time_now(self):
         # Reset the end time to the current time
-        self.endTimeEdit.setDateTime(QDateTime.currentDateTime().toUTC())
+        buffer_size = int(float(self.bufferSizeCombo.currentText() or 0) * 3600)
+        self.startTimeEdit.setDateTime(QDateTime.currentDateTime().toUTC().addSecs(-buffer_size))
+
     def update_clock(self):
         # Update the clock label with the current time
         current_time = QDateTime.currentDateTimeUtc()
