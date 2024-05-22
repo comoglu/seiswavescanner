@@ -88,9 +88,9 @@ class Form(QWidget):
 
         # Add items with different stream codes
         stream_codes_list = [
-            "Fijian Stations",
             "Australia",
             "Australian Arrays",
+            "Fijian Stations",
         ]
 
         for stream_codes in stream_codes_list:
